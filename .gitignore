@@ -1,0 +1,5 @@
+__pycache__/
+*.py[cod]
+
+data/collected/
+data/problem_bank_editable.xlsx

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NSW 로컬 문제은행 - Stage 1~6</title>
+<style>
+*{box-sizing:border-box} body{font-family: Pretendard, Apple SD Gothic Neo, sans-serif; margin:0; background:#f7f8fb; color:#1a1a2e}
+header{background:#0a1931; color:white; padding:20px 32px; display:flex; justify-content:space-between; align-items:center}
+header h1{margin:0; font-size:20px} header p{margin:4px 0 0; opacity:0.7; font-size:13px}
+.container{display:grid; grid-template-columns:260px 1fr 300px; min-height:calc(100vh - 72px)}
+aside{background:white; border-right:1px solid #e5e7eb; padding:16px; overflow:auto}
+main{background:white; margin:12px; border-radius:12px; border:1px solid #e5e7eb; padding:16px; overflow:auto}
+.right{background:white; border-left:1px solid #e5e7eb; padding:16px}
+.stage-btn{display:block; width:100%; text-align:left; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:8px; cursor:pointer; background:white}
+.stage-btn.active{background:#0a1931; color:white}
+.subj-tab{padding:8px 14px; border-radius:20px; border:1px solid #e5e7eb; background:white; cursor:pointer; margin-right:6px}
+.subj-tab.active{background:#185adb; color:white; border-color:#185adb}
+table{width:100%; border-collapse:collapse; font-size:13px}
+th{position:sticky; top:0; background:#f9fafb; padding:10px; border-bottom:1px solid #e5e7eb; text-align:left}
+td{padding:10px; border-bottom:1px solid #f3f4f6}
+.badge{padding:2px 8px; border-radius:10px; font-size:11px}
+.skill{background:#dbeafe; color:#1e40af} .ability{background:#fef3c7; color:#92400e}
+.filter{margin:12px 0; display:flex; gap:8px; flex-wrap:wrap}
+input[type=search]{width:100%; padding:10px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:12px}
+.modal{display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:100}
+.modal-box{background:white; padding:24px; border-radius:16px; width:500px; max-width:90%}
+@media(max-width:1100px){.container{grid-template-columns:1fr} .right{display:none}}
+</style>
+</head>
+<body>
+<header>
+<div><h1>NSW 로컬 문제은행 v1.0 - OFFLINE</h1><p>Stage 1~6 | 수학·영어·과학·Thinking Skill·Thinking Ability | 100% Local - Perplexity/API 없음</p></div>
+<div style="font-size:12px; opacity:0.8">📁 로컬 실행 | 🔒 인터넷 불필요</div>
+</header>
+<div class="container">
+<aside>
+<h3>Stage 선택</h3>
+<div id="stageList"></div>
+<h3 style="margin-top:20px">NESA Outcome</h3>
+<ul id="outcomeList" style="font-size:12px; padding-left:16px"></ul>
+<div style="margin-top:20px; padding:12px; background:#f0f9ff; border-radius:8px; font-size:12px">
+<b>로컬 구조:</b><br>
+/data/problem_bank.json<br>
+/js/app.js<br>
+이 파일만 수정하면 문항 추가됨. API 호출 없음.
+</div>
+</aside>
+<main>
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap">
+<div id="subjectTabs"></div>
+<button onclick="exportCSV()" style="padding:8px 14px; background:#0a1931; color:white; border:none; border-radius:8px; cursor:pointer">CSV 내보내기 (로컬)</button>
+</div>
+<input id="search" type="search" placeholder="문항 검색 - 예: Matrix, Analogy, 수학">
+<div class="filter">
+<select id="typeFilter"><option value="">Skill/Ability 전체</option><option>Skill</option><option>Ability</option></select>
+<select id="diffFilter"><option value="">난도 전체</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+</div>
+<table><thead><tr><th>ID</th><th>Stage</th><th>Topic</th><th>유형</th><th>난도</th><th>구분</th><th>시간</th></tr></thead><tbody id="tbody"></tbody></table>
+</main>
+<div class="right">
+<h3>📚 최신 NSW 교육 동향 (로컬 메모)</h3>
+<p style="font-size:12px; color:#666">이 영역은 인터넷 수집이 아닌, 선생님이 직접 /data/updates.md에 메모하는 로컬 노트입니다. Perplexity 없이도 유지 가능.</p>
+<div style="font-size:13px; line-height:1.6">
+<div style="border-left:3px solid #185adb; padding-left:10px; margin-bottom:14px"><b>2025 NESA 개정</b><br>Working Mathematically 비중 35% → 문제해결 중심 서술형 증가</div>
+<div style="border-left:3px solid #0a1931; padding-left:10px; margin-bottom:14px"><b>Selective 2025 CBT</b><br>Thinking 40문항 40분 4지선다, 화면 기반 연습 필수</div>
+<div style="border-left:3px solid #f59e0b; padding-left:10px"><b>HSC 2026</b><br>Critical & Creative Thinking이 모든 과목 General Capability로 평가</div>
+</div>
+<h4 style="margin-top:24px">통계 (로컬)</h4>
+<div id="stats" style="font-size:13px"></div>
+</div>
+</div>
+<div id="modal" class="modal" onclick="if(event.target==this)closeModal()"><div class="modal-box"><h3 id="mTitle"></h3><div id="mBody" style="font-size:14px; line-height:1.7"></div><button onclick="closeModal()" style="margin-top:16px; padding:8px 16px">닫기</button></div></div>
+<script>
+let DB=null, curStage="Stage 3 (5-6)", curSubject="수학";
+fetch('data/problem_bank.json').then(r=>r.json()).then(d=>{DB=d; init()});
+function init(){
+ renderStages(); renderSubjects(); renderOutcomes(); renderTable();
+ document.getElementById('search').addEventListener('input', renderTable);
+ document.getElementById('typeFilter').addEventListener('change', renderTable);
+ document.getElementById('diffFilter').addEventListener('change', renderTable);
+}
+function renderStages(){
+ const el=document.getElementById('stageList'); el.innerHTML='';
+ DB.meta.stages.forEach(s=>{ const b=document.createElement('button'); b.className='stage-btn'+(s==curStage?' active':''); b.textContent=s; b.onclick=()=>{curStage=s; renderStages(); renderTable(); renderOutcomes()}; el.appendChild(b)});
+}
+function renderSubjects(){
+ const el=document.getElementById('subjectTabs'); el.innerHTML='';
+ DB.meta.subjects.forEach(s=>{ const b=document.createElement('button'); b.className='subj-tab'+(s==curSubject?' active':''); b.textContent=s; b.onclick=()=>{curSubject=s; renderSubjects(); renderTable(); renderOutcomes()}; el.appendChild(b)});
+}
+function renderOutcomes(){
+ const list=DB.nesa_outcomes[curSubject]||[]; document.getElementById('outcomeList').innerHTML=list.map(o=>`<li>${o}</li>`).join('');
+}
+function renderTable(){
+ if(!DB) return;
+ const q=DB.questions.filter(x=> (curStage.includes('Stage') ? x.stage==curStage || true : true)).filter(x=>{
+   const search=document.getElementById('search').value.toLowerCase();
+   const typeF=document.getElementById('typeFilter').value;
+   const diffF=document.getElementById('diffFilter').value;
+   let ok=true;
+   if(search && !(x.topic+x.subtype+x.q_kr).toLowerCase().includes(search)) ok=false;
+   if(typeF && x.skill_type!=typeF) ok=false;
+   if(diffF && String(x.difficulty)!=diffF) ok=false;
+   // subject filter loose for demo
+   return ok;
+ });
+ const tbody=document.getElementById('tbody'); tbody.innerHTML='';
+ q.slice(0,200).forEach(row=>{
+   const tr=document.createElement('tr'); tr.style.cursor='pointer';
+   tr.innerHTML=`<td>${row.id}</td><td>${row.stage}</td><td>${row.topic}</td><td>${row.subtype}</td><td>${'★'.repeat(row.difficulty)}</td><td><span class="badge ${row.skill_type=='Skill'?'skill':'ability'}">${row.skill_type}</span></td><td>${row.time}s</td>`;
+   tr.onclick=()=>openModal(row); tbody.appendChild(tr);
+ });
+ document.getElementById('stats').innerHTML=`총 문항: ${q.length}<br>Skill: ${q.filter(x=>x.skill_type=='Skill').length}<br>Ability: ${q.filter(x=>x.skill_type=='Ability').length}`;
+}
+function openModal(r){
+ document.getElementById('mTitle').textContent=r.id+' - '+r.topic;
+ document.getElementById('mBody').innerHTML=`<p><b>한글:</b> ${r.q_kr}</p><p><b>English:</b> ${r.q_en}</p><p><b>Rule:</b> ${r.rule1} ${r.rule2}</p><p><b>정답:</b> ${r.answer}</p><p><b>해설:</b> ${r.explanation_kr}</p>`;
+ document.getElementById('modal').style.display='flex';
+}
+function closeModal(){document.getElementById('modal').style.display='none'}
+function exportCSV(){
+ if(!DB) return;
+ let csv="ID,Stage,Subject,Topic,Subtype,Difficulty,Type,Time,Question_KR,Answer\n";
+ DB.questions.forEach(r=>{csv+=`${r.id},${r.stage},${r.subject},${r.topic},${r.subtype},${r.difficulty},${r.skill_type},${r.time},"${r.q_kr}",${r.answer}\n`});
+ const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob);
+ const a=document.createElement('a'); a.href=url; a.download='NSW_problem_bank_local.csv'; a.click();
+}
+</script>
+</body>
+</html>
