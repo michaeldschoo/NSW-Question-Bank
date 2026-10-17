@@ -93,7 +93,8 @@ function renderOutcomes(){
 }
 function renderTable(){
  if(!DB) return;
- const q=DB.questions.filter(x=> (curStage.includes('Stage') ? x.stage==curStage || true : true)).filter(x=>{
+ const selectedStage=curStage.replace(/ \(.+\)$/, '');
+ const q=DB.questions.filter(x=>x.stage===selectedStage).filter(x=>{
    const search=document.getElementById('search').value.toLowerCase();
    const typeF=document.getElementById('typeFilter').value;
    const diffF=document.getElementById('diffFilter').value;
@@ -105,6 +106,11 @@ function renderTable(){
    return ok;
  });
  const tbody=document.getElementById('tbody'); tbody.innerHTML='';
+ if(q.length===0){
+   const tr=document.createElement('tr'); const td=document.createElement('td');
+   td.colSpan=7; td.textContent='선택한 조건에 맞는 문항이 없습니다.';
+   tr.appendChild(td); tbody.appendChild(tr);
+ }
  q.slice(0,200).forEach(row=>{
    const tr=document.createElement('tr'); tr.style.cursor='pointer';
    tr.innerHTML=`<td>${row.id}</td><td>${row.stage}</td><td>${row.topic}</td><td>${row.subtype}</td><td>${'★'.repeat(row.difficulty)}</td><td><span class="badge ${row.skill_type=='Skill'?'skill':'ability'}">${row.skill_type}</span></td><td>${row.time}s</td>`;
