@@ -7,6 +7,11 @@ Perplexity API / 외부 서버 / 클라우드 의존성 없음.
 2. index.html 더블클릭 → 브라우저에서 바로 열림 (Chrome 권장)
 3. 인터넷 연결 없이 동작
 
+## GitHub Pages 배포
+
+`main` 브랜치에 푸시하면 GitHub Actions가 사이트를 자동 배포합니다.
+배포 주소: https://michaeldschoo.github.io/NSW-Question-Bank/
+
 ## 폴더 구조
 NSW_Local_ProblemBank/
 ├── index.html            ← 메인 프로그램 (이 파일만 열면 됨)
