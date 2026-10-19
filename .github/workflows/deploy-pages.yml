@@ -30,7 +30,7 @@ jobs:
       - name: Prepare site files
         run: |
           mkdir -p _site/data
-          cp index.html _site/
+          cp index.html index_kr.html _site/
           cp -R data/. _site/data/
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
