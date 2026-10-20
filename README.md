@@ -1,4 +1,4 @@
-# NSW Question Bank - Stage 1~6 로컬 문제은행 (100% Offline)
+# NSW Question Bank - Stage 1~6 문제은행 (로컬 실행 및 웹 배포)
 
 > 지속적인 최신 호주 교육 실태 조사 및 수업 자료 수집을 통해서 NSW 학생들의 학교 성적향상 및 우수한 대학에 진학할 수 있도록 학원에서 학생들을 위한 문제은행을 구축
 
@@ -15,6 +15,36 @@
 1. 이 저장소를 다운로드: `Code > Download ZIP` 또는 `git clone https://github.com/michaeldschoo/NSW-Question-Bank.git`
 2. Open `index.html` for English or `index_kr.html` for Korean.
 3. 인터넷 없이 동작, 설치 불필요
+
+---
+
+## 🌐 웹 배포 현황 및 Cloudflare 안내 (2026-10-20 기준)
+
+이 저장소에는 정적 웹앱(`index.html`, `index_kr.html`)과 GitHub Pages 배포 워크플로가 있습니다. `main`에 푸시되면 `.github/workflows/deploy-pages.yml`이 실행되도록 설정되어 있지만, 실제 GitHub Pages 배포 성공 여부와 저장소 공개 범위는 아직 확인하지 못했습니다.
+
+### 현재까지 확인된 상태
+
+- Cloudflare Pages 연결 및 Cloudflare Access 정책은 아직 설정되지 않았습니다.
+- Cloudflare에서 저장소를 선택한 뒤 표시된 화면은 **Workers 설정**이며, Pages 설정 화면이라고 확인된 것은 아닙니다. 화면의 뒤로 가기를 누르면 저장소 선택 화면으로 돌아간다고 보고되었습니다.
+- 화면에 표시된 Workers 빌드 명령은 `npx wrangler deploy`, 미리보기 명령은 `npx wrangler preview`입니다. 하지만 저장소 루트에서 Wrangler 설정 파일(`wrangler.jsonc`/`wrangler.toml`)과 별도 정적 배포 폴더는 확인되지 않았습니다. 따라서 이 명령으로 바로 배포하지 말고, Cloudflare에 이 저장소의 정적 파일을 어떻게 배포해야 하는지 확인하세요.
+- GitHub Pages 워크플로는 `_site`에 `index.html`, `index_kr.html`, `data/`를 복사해 배포합니다. 그러므로 `data/problem_bank.json`은 배포 결과에 포함됩니다.
+- 허용할 이메일 주소: `elmundochoo@gmail.com`. 실제 Access 정책은 아직 만들어지지 않았습니다. 배포 후 운영 주소와 미리보기 주소 각각에 접근 제한이 적용되는지 확인해야 합니다.
+
+### Cloudflare에 문의할 내용
+
+> GitHub 저장소 `michaeldschoo/NSW-Question-Bank`의 `main` 브랜치에 있는 정적 웹앱을 배포하려고 합니다. 저장소에는 `index.html`, `index_kr.html`, `data/`가 있으며, 루트에 `wrangler.jsonc`/`wrangler.toml` 또는 `package.json`은 없습니다. GitHub에서 저장소를 선택한 후 Pages가 아니라 Workers 설정 폼이 표시됩니다. 이 저장소를 Cloudflare Pages로 연결하는 정확한 대시보드 경로를 안내해 주세요. Pages가 아니라 Workers를 사용해야 한다면, 필요한 Wrangler 설정, 정적 자산 디렉터리, 빌드/배포 명령을 알려주세요. 배포 후 `elmundochoo@gmail.com`만 운영 및 미리보기 사이트에 접근하도록 Cloudflare Access를 설정하고 싶습니다. 문항 데이터가 공개되지 않도록 해야 합니다.
+
+**주의:** 저장소 공개 범위는 아직 확인되지 않았습니다. 저장소가 공개라면 저장소 파일과 `data/problem_bank.json`을 누구나 볼 수 있습니다. 비공개 저장소라도 공개 사이트에 포함해 배포한 파일은 사이트 방문자가 접근할 수 있으므로, 비공개 데이터라고 가정하지 마세요. 비밀 토큰이나 비밀번호를 저장소 또는 브라우저 코드에 넣지 마세요.
+
+---
+
+## 💾 문항 데이터 저장 및 백업
+
+- `data/problem_bank.json`은 저장소에 있는 문항 데이터 파일입니다. 엑셀 변환 도구와 Git으로 관리할 수 있습니다.
+- 현재 웹앱에는 **JSON 내보내기** 기능이 표시되며, 이를 통해 내려받은 파일은 사용자가 별도로 보관해야 합니다.
+- 코드 검색에서 `localStorage`/`sessionStorage` 기반 저장이나 GitHub 자동 동기화는 확인되지 않았습니다. 웹앱에서 진행한 세션·진단 등 실행 중 생성 데이터는 브라우저 메모리에만 있을 수 있으므로, 새로고침/창 닫기 전 내보내고 백업하세요.
+- Cloudflare Pages/Workers는 정적 파일을 배포하는 것만으로 앱의 새 데이터를 GitHub 저장소에 자동 저장하지 않습니다. 영구 저장·동기화가 필요하면 별도의 인증된 백엔드와 데이터 저장소를 설계해야 합니다.
+- 로컬에서 문항 원본을 수정할 때는 이 README의 엑셀 ↔ JSON 워크플로를 사용하고, 변경된 `data/problem_bank.json`을 검토한 뒤 GitHub에 커밋·푸시하세요.
 
 ---
 
