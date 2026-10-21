@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NSW 문제은행 - 한국어</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root{--nsw-blue:#002664;--nsw-sky:#e6efff;--surface:#fff;--surface-2:#f8fafc;--border:#d9e1ec;--text:#0f1a2e;--text-2:#4a5a75}
+    body{font-family:Noto Sans KR,system-ui,sans-serif;background:var(--surface-2);color:var(--text)}
+    .mono{font-family:JetBrains Mono,monospace}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script crossorigin src="https://unpkg.com/react@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useMemo} = React;
+function App(){
+  const [problems,setProblems]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState("");
+  const [stage,setStage]=useState("all");
+  const [search,setSearch]=useState("");
+  const [page,setPage]=useState(1);
+  const perPage=12;
+  
+  useEffect(()=>{
+    fetch(`/api/problems?lang=kr&stage=${stage}`)
+      .then(r=>r.json())
+      .then(data=>{
+        if(data.error) throw new Error(data.error);
+        setProblems(Array.isArray(data)?data:[]);
+        setLoading(false);
+      })
+      .catch(e=>{setError(e.message); setLoading(false);});
+  },[stage]);
+  
+  const filtered = useMemo(()=>{
+    let d=problems;
+    if(search.trim()){
+      const q=search.toLowerCase();
+      d=d.filter(p=> (p.stem||"").toLowerCase().includes(q) || (p.skillCode||"").toLowerCase().includes(q));
+    }
+    return d;
+  },[problems,search]);
+  
+  const totalPages=Math.ceil(filtered.length/perPage);
+  const paged=filtered.slice((page-1)*perPage, page*perPage);
+  
+  if(loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-center"><div className="w-8 h-8 border-4 border-slate-200 border-t-[#002664] rounded-full animate-spin mx-auto"></div><p className="mt-3 mono text-sm">D1에서 불러오는 중...</p></div></div>;
+  if(error) return <div className="p-8"><div className="bg-red-50 border border-red-200 p-4 rounded-xl">오류: {error}</div></div>;
+  
+  return (
+    <div className="min-h-screen">
+      <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b">
+        <div className="max-w-[1280px] mx-auto px-4 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#002664] text-white flex items-center justify-center font-bold">NSW</div>
+            <div>
+              <h1 className="font-bold text-[18px] leading-none">NSW 문제은행 v3 - 한국어</h1>
+              <p className="text-[11px] text-slate-500 mono">D1 연결 · {problems.length}개 실제 문제 · q_kr 전용</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <a href="/index.html" className="px-3 py-1.5 rounded-full bg-slate-100 border text-[12px]">English</a>
+            <span className="px-3 py-1.5 rounded-full bg-[#e6efff] border text-[11px] mono">{problems.length} 문항</span>
+          </div>
+        </div>
+        <div className="max-w-[1280px] mx-auto px-4 pb-3 flex gap-2 flex-wrap">
+          <div className="flex gap-1 p-1 rounded-xl bg-slate-100 border">
+            <button onClick={()=>{setStage("all");setPage(1)}} className={`px-3 py-1.5 rounded-lg text-[12px] ${stage==="all"?"bg-white shadow font-bold":""}`}>전체</button>
+            {[1,2,3,4,5,6].map(s=><button key={s} onClick={()=>{setStage(String(s));setPage(1)}} className={`px-2.5 py-1.5 rounded-lg text-[12px] ${stage===String(s)?"bg-white shadow font-bold":""}`}>S{s}</button>)}
+          </div>
+          <div className="relative">
+            <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1)}} placeholder="ID, 스킬, 문항 검색..." className="w-[260px] pl-8 pr-3 py-2 rounded-xl bg-slate-50 border text-[13px]" />
+            <span className="absolute left-3 top-2.5 text-slate-400">⌕</span>
+          </div>
+        </div>
+      </header>
+      
+      <main className="max-w-[1280px] mx-auto px-4 py-6">
+        <div className="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-200 text-[12px]">
+          ✅ D1 연결됨: <code>/api/problems?lang=kr</code> - <b>q_kr</b> 필드만 사용, problem_bank.json 원본 기반
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {paged.map(p=>(
+            <div key={p.id} className="rounded-2xl bg-white border p-4 flex flex-col gap-3 hover:shadow-md transition">
+              <div className="flex justify-between">
+                <div className="flex gap-1.5">
+                  <span className="px-2 py-0.5 rounded-full bg-[#e6efff] text-[#002664] text-[10px] font-bold mono">S{p.stage}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-50 text-[10px] mono border">{p.subject}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-50 text-[10px] mono border">{p.difficulty}</span>
+                </div>
+                <span className="text-[10px] mono text-slate-400">{p.id}</span>
+              </div>
+              <div className="flex gap-1.5">
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 border mono">{p.skillCode}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 border mono">{p.abilityCode}</span>
+              </div>
+              <p className="text-[13px] font-medium leading-[1.5] line-clamp-3">{p.stem}</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {p.options.map((opt,i)=>(
+                  <div key={i} className={`text-[11px] px-2.5 py-2 rounded-xl border ${i===p.answer?"bg-green-50 border-green-200 text-green-800 font-bold":"bg-slate-50 border-slate-200"}`}>
+                    <span className="mono mr-1">{String.fromCharCode(65+i)}.</span>{opt}
+                  </div>
+                ))}
+              </div>
+              {p.explanation && <div className="text-[11px] text-slate-500 bg-slate-50 rounded-xl p-2.5 border border-dashed">💡 {p.explanation.slice(0,120)}</div>}
+            </div>
+          ))}
+        </div>
+        
+        <div className="mt-6 flex justify-between items-center">
+          <span className="text-[12px] mono text-slate-500">{filtered.length} 문항 · {page}/{totalPages||1} 페이지</span>
+          <div className="flex gap-2">
+            <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="px-3 py-1.5 rounded-xl border bg-white text-[12px] disabled:opacity-40">이전</button>
+            <button disabled={page>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} className="px-3 py-1.5 rounded-xl border bg-white text-[12px] disabled:opacity-40">다음</button>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
