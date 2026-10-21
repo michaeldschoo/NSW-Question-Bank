@@ -1,84 +1,79 @@
 export async function onRequestGet(context) {
-  const { request, env } = context;
+  const { env, request } = context;
   const url = new URL(request.url);
   const lang = url.searchParams.get('lang') || 'en';
-  const stage = url.searchParams.get('stage');
-  
-  let query = "SELECT * FROM problems";
-  let params = [];
-  
-  if (stage && stage !== 'all') {
-    query += " WHERE stage = ?";
-    params.push(stage);
+  const stageFilter = url.searchParams.get('stage');
+
+  let sql = "SELECT * FROM problems";
+  let binds = [];
+  if (stageFilter && stageFilter !== 'all') {
+    sql += " WHERE id LIKE ?";
+    binds.push(`%S${stageFilter}-%`);
   }
-  query += " ORDER BY CAST(stage AS INTEGER), id LIMIT 300";
-  
+  sql += " LIMIT 300";
+
   try {
-    const stmt = env.DB.prepare(query);
-    const bound = params.length ? stmt.bind(...params) : stmt;
-    const { results } = await bound.all();
-    
-    const mapped = results.map(row => {
-      // q_en / q_kr 선택
-      const stem = lang === 'kr' ? (row.q_kr || row.q_en) : (row.q_en || row.q_kr);
+    const stmt = env.DB.prepare(sql);
+    const { results } = await (binds.length ? stmt.bind(...binds) : stmt).all();
+
+    const mapped = results.map(r => {
+      // stage는 id에서 추출: S4-EN-001-40 -> 4
+      const stageFromId = parseInt((r.id.match(/S(\d)/)||[])[1]) || r.stage || 1;
       
-      // answer 처리
-      let answerIdx = 0;
-      if (typeof row.answer === 'string') {
-        const a = row.answer.trim().toUpperCase();
-        if (['A','B','C','D'].includes(a)) answerIdx = a.charCodeAt(0) - 65;
-        else if (!isNaN(parseInt(a))) answerIdx = parseInt(a) % 4;
-      } else {
-        answerIdx = row.answer || 0;
-      }
+      // 본문에서 A) B) C) D) 추출
+      const rawText = lang === 'kr' ? (r.q_kr || r.q_en) : (r.q_en || r.q_kr);
       
-      // options - problem_bank 구조에 따라 rule1, rule2 또는 기본값
+      // 선택지가 본문에 포함된 경우 분리
+      let stem = rawText;
       let options = [];
-      try {
-        if (row.q_en && row.q_en.includes('|')) {
-          // 파이프로 구분된 경우
-          options = row.q_en.split('|').slice(1,5);
-        }
-      } catch(e){}
       
-      if (row.rule1 && row.rule2) {
-        options = [row.rule1, row.rule2, row.rule1 + " (변형)", row.rule2 + " (변형)"];
+      // 패턴: A) ... B) ... C) ... D) ...
+      const optionRegex = /\s*A\)\s*(.*?)\s*B\)\s*(.*?)\s*C\)\s*(.*?)\s*D\)\s*(.*)/s;
+      const match = rawText.match(optionRegex);
+      
+      if (match) {
+        stem = rawText.split(/A\)/)[0].trim();
+        options = [match[1].trim(), match[2].trim(), match[3].trim(), match[4].trim()];
+      } else {
+        // 없으면 rule1/rule2는 버리고 기본값
+        options = ["A", "B", "C", "D"];
       }
-      
-      if (options.length < 4) {
-        options = ["Choice A", "Choice B", "Choice C", "Choice D"];
-      }
-      
+
+      const a = (r.answer||'A').trim().toUpperCase();
+      const answerIdx = ['A','B','C','D'].indexOf(a) >=0 ? ['A','B','C','D'].indexOf(a) : 0;
+
+      let diff = "M";
+      const d = parseInt(r.difficulty);
+      if (d <= 1) diff = "E";
+      else if (d === 2) diff = "M";
+      else diff = "H";
+
+      // 영어버전이면 subject도 영어로, explanation도 영어로 (없으면 번역 없이 원문)
+      const subjectEn = r.subject === '영어' ? 'English' : r.subject === '사고력' ? 'Thinking' : r.subject;
+      const subject = lang === 'kr' ? r.subject : subjectEn;
+
       return {
-        id: String(row.id),
-        stage: parseInt(row.stage) || 1,
-        subject: row.subject || "Math",
-        skillCode: row.topic || row.subtype || "A1",
-        abilityCode: row.skill_type || "R",
-        difficulty: row.difficulty === 0 || row.difficulty === "E" ? "E" : row.difficulty === 1 || row.difficulty === "M" ? "M" : row.difficulty === 2 || row.difficulty === "H" ? "H" : (row.difficulty || "M"),
+        id: r.id,
+        stage: stageFromId,
+        subject: subject,
+        skillCode: r.topic,
+        abilityCode: r.subtype,
+        difficulty: diff,
         stem: stem,
-        q_kr: row.q_kr,
-        q_en: row.q_en,
-        options: options.slice(0,4),
+        q_kr: r.q_kr,
+        q_en: r.q_en,
+        options: options,
         answer: answerIdx,
-        explanation: row.explanation_kr || row.rule1 || "",
-        source: row.source || "bank",
-        time_sec: row.time_sec || 60,
-        tags: [row.subject, row.topic].filter(Boolean)
+        explanation: lang === 'kr' ? r.explanation_kr : r.explanation_kr, // 영어 해설 없으므로 일단 동일, 추후 번역 필요
+        source: r.source,
+        tags: [r.topic, r.subtype]
       };
     });
-    
+
     return new Response(JSON.stringify(mapped), {
-      headers: { 
-        'Content-Type': 'application/json; charset=utf-8',
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'no-cache'
-      }
+      headers: { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' }
     });
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message, stack: e.stack }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return new Response(JSON.stringify({ error: e.message, stack: e.stack }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
