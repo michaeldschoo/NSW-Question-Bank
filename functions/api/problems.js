@@ -1,11 +1,25 @@
 export async function onRequestGet(context) {
+  const url = new URL(context.request.url);
+  const stage = url.searchParams.get('stage');
+  const subject = url.searchParams.get('subject');
+  
   try {
-    const { results } = await context.env.DB.prepare("SELECT * FROM problems LIMIT 100").all();
-    return new Response(JSON.stringify(results || []), {
-      headers: { "Content-Type": "application/json" }
+    let query = "SELECT * FROM problems";
+    let params = [];
+    
+    if (stage) {
+      query += " WHERE stage = ?";
+      params.push(stage);
+    }
+    
+    const stmt = context.env.DB.prepare(query);
+    const result = params.length ? await stmt.bind(...params).all() : await stmt.all();
+    
+    return new Response(JSON.stringify(result.results || []), {
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
     });
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message, hint: "D1 바인딩 또는 테이블 생성 확인 필요" }), {
+    return new Response(JSON.stringify({ error: e.message }), {
       status: 500,
       headers: { "Content-Type": "application/json" }
     });
