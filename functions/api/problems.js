@@ -104,3 +104,76 @@ export async function onRequestGet(context) {
     });
   }
 }
+
+export async function onRequestPost({ request, env }) {
+  try {
+    const { problems } = await request.json();
+    if (!Array.isArray(problems) || problems.length === 0) {
+      return new Response(JSON.stringify({ error: "No problems" }), { status: 400 });
+    }
+
+    const { results: existing } = await env.DB.prepare(
+      "SELECT subject, stage, difficulty, question FROM problems WHERE question IS NOT NULL"
+    ).all();
+    const makeComposite = (subject, stage, difficulty, question) =>
+      `${subject}|${stage}|${difficulty}|${String(question ?? '').trim()}`;
+    const existingSet = new Set(
+      existing.map(r => makeComposite(r.subject, r.stage, r.difficulty, r.question))
+    );
+
+    let saved = 0, skipped = 0;
+    for (const p of problems) {
+      const question = String(p.question ?? '').trim();
+      const composite = makeComposite(p.subject, p.stage, p.difficulty, question);
+
+      // 같은 문제 내용은 ID가 달라도 저장하지 않음
+      if (existingSet.has(composite)) {
+        skipped++;
+        continue;
+      }
+
+      const idExists = await env.DB.prepare(
+        "SELECT id FROM problems WHERE id = ?"
+      ).bind(p.id).first();
+      if (idExists) {
+        skipped++;
+        continue;
+      }
+
+      const result = await env.DB.prepare(
+        `INSERT OR IGNORE INTO problems
+         (id, stage, subject, difficulty, question, options, answer, explanation, skill, tag)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        p.id,
+        p.stage,
+        p.subject,
+        p.difficulty,
+        question,
+        JSON.stringify(p.options),
+        typeof p.answer === 'number' ? p.options[p.answer] : p.answer,
+        p.explanation,
+        p.skill || 'General',
+        p.tag || 'generated'
+      ).run();
+
+      if (result.meta.changes > 0) {
+        saved++;
+        existingSet.add(composite);
+      } else {
+        skipped++;
+      }
+    }
+
+    return new Response(JSON.stringify({
+      saved,
+      skipped,
+      total: problems.length,
+      message: `Saved ${saved}, skipped ${skipped} duplicates`
+    }), {
+      headers: { "Content-Type": "application/json" }
+    });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+  }
+}
