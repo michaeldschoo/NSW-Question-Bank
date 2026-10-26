@@ -3,177 +3,98 @@ export async function onRequestGet(context) {
   const url = new URL(request.url);
   const lang = url.searchParams.get('lang') || 'en';
   const stageFilter = url.searchParams.get('stage');
-
   let sql = "SELECT * FROM problems";
   let binds = [];
   if (stageFilter && stageFilter !== 'all') {
-    // id가 S4-EN-001-40 형태이므로 LIKE로 검색
     sql += " WHERE stage LIKE ? OR id LIKE ?";
     binds.push(`%${stageFilter}%`, `S${stageFilter}-%`);
   }
-  sql += " ORDER BY id LIMIT 300";
-
+  sql += " ORDER BY id LIMIT 500";
   try {
     const stmt = env.DB.prepare(sql);
     const { results } = await (binds.length ? stmt.bind(...binds) : stmt).all();
-
     const subjectMap = {
-      '영어': { en: 'English', kr: '영어' },
-      '수학': { en: 'Math', kr: '수학' },
-      '사고력': { en: 'Thinking Skill', kr: '사고력' },
-      'Thinking Skill': { en: 'Thinking Skill', kr: '사고력' },
-      'English': { en: 'English', kr: '영어' },
-      'Math': { en: 'Math', kr: '수학' }
+      '영어': { en: 'English', kr: '영어' }, '수학': { en: 'Math', kr: '수학' },
+      '사고력': { en: 'Thinking Skill', kr: '사고력' }, '과학': { en: 'Science', kr: '과학' },
+      'Thinking Skill': { en: 'Thinking Skill', kr: '사고력' }, 'Science': { en: 'Science', kr: '과학' },
+      'English': { en: 'English', kr: '영어' }, 'Math': { en: 'Math', kr: '수학' }
     };
-
     const mapped = results.map(r => {
-      // stage 추출: "Stage 3" -> 3, "S4-EN..." -> 4
       let stageNum = 1;
-      if (typeof r.stage === 'string' && r.stage.includes('Stage')) {
-        stageNum = parseInt(r.stage.replace(/\D/g,'')) || 1;
-      } else if (r.id && r.id.match(/S(\d)/)) {
-        stageNum = parseInt(r.id.match(/S(\d)/)[1]);
-      } else {
-        stageNum = parseInt(r.stage) || 1;
-      }
-
-      // subject 번역
+      if (typeof r.stage === 'string' && r.stage.includes('Stage')) stageNum = parseInt(r.stage.replace(/\D/g,'')) || 1;
+      else if (r.id && r.id.match(/S(\d)/)) stageNum = parseInt(r.id.match(/S(\d)/)[1]);
+      else stageNum = parseInt(r.stage) || 1;
       const subj = subjectMap[r.subject] || { en: r.subject, kr: r.subject };
       const subject = lang === 'kr' ? subj.kr : subj.en;
-
-      // stem: 언어별 선택
-      let rawStem = lang === 'kr' ? (r.q_kr || r.q_en) : (r.q_en || r.q_kr);
-      
-      // options가 ["A","B","C","D"] placeholder면 이미지 필요 표시
+      let rawStem = lang === 'kr' ? (r.q_kr || r.q_en || r.question) : (r.q_en || r.q_kr || r.question);
       let options = r.options;
-      try {
-        if (typeof options === 'string') options = JSON.parse(options);
-      } catch(e) { options = ["A","B","C","D"]; }
-      
-      if (!options || options.length === 0 || (options[0]==="A" && options[1]==="B")) {
-        // 실제 이미지 문제: placeholder를 유지하되, 설명에 이미지 필요 명시
-        options = lang === 'kr' 
-          ? ["이미지 A", "이미지 B", "이미지 C", "이미지 D"]
-          : ["Image A", "Image B", "Image C", "Image D"];
-      }
-
-      // q_kr/q_en 안에 A) B) C) D) 가 포함된 경우 분리 (영어 읽기 문제)
+      try { if (typeof options === 'string') options = JSON.parse(options); } catch(e) { options = []; }
+      if (!options || options.length === 0) options = ["A","B","C","D"];
       const optionRegex = /\s*A\)\s*(.*?)\s*B\)\s*(.*?)\s*C\)\s*(.*?)\s*D\)\s*(.*)/s;
-      const match = rawStem.match(optionRegex);
-      if (match) {
-        rawStem = rawStem.split(/A\)/)[0].trim();
-        options = [match[1].trim(), match[2].trim(), match[3].trim(), match[4].trim()];
-      }
-
+      const match = rawStem ? rawStem.match(optionRegex) : null;
+      if (match) { rawStem = rawStem.split(/A\)/)[0].trim(); options = [match[1].trim(), match[2].trim(), match[3].trim(), match[4].trim()]; }
       const a = String(r.answer||'A').trim().toUpperCase();
-      const answerIdx = ['A','B','C','D'].indexOf(a) >=0 ? ['A','B','C','D'].indexOf(a) : parseInt(a) || 0;
-
-      return {
-        id: r.id,
-        stage: stageNum,
-        subject: subject,
-        skillCode: r.topic || r.skillCode || "Pattern",
-        abilityCode: r.subtype || r.abilityCode || "General",
-        difficulty: r.difficulty || "M",
-        stem: rawStem,
-        q_kr: r.q_kr,
-        q_en: r.q_en,
-        options: options,
-        answer: answerIdx,
-        explanation: lang === 'kr' 
-          ? r.explanation_kr || r.explanation
-          : (r.explanation_en || r.explanation || `Rule: ${r.rule1 || ''} ${r.rule2 || ''}`),
-        source: r.source,
-        tags: r.tags || [r.topic]
-      };
+      const answerIdx = ['A','B','C','D'].indexOf(a) >=0 ? ['A','B','C','D'].indexOf(a) : (parseInt(a) || 0);
+      return { id: r.id, stage: stageNum, subject, skillCode: r.topic||"Pattern", abilityCode: r.subtype||"General", difficulty: r.difficulty===0?'E':r.difficulty===1?'M':r.difficulty===2?'H':(r.difficulty||"M"), stem: rawStem, q_kr: r.q_kr, q_en: r.q_en, options, answer: answerIdx, explanation: lang==='kr' ? (r.explanation_kr||r.explanation) : (r.explanation||r.explanation_kr||`Rule: ${r.rule1||''} ${r.rule2||''}`), source: r.source, tags: [r.topic] };
     });
-
-    // lang에 따라 필터링은 안 하고, subject만 번역해서 반환
-    // 영어 버전에서도 한국어 subject가 섞이지 않도록 subjectMap으로 완전 분리
-
-    return new Response(JSON.stringify(mapped), {
-      headers: { 
-        'Content-Type': 'application/json; charset=utf-8', 
-        'Access-Control-Allow-Origin': '*' 
-      }
-    });
+    return new Response(JSON.stringify(mapped), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' } });
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message, stack: e.stack }), { 
-      status: 500, 
-      headers: { 'Content-Type': 'application/json' } 
-    });
+    return new Response(JSON.stringify({ error: e.message, stack: e.stack }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
 
 export async function onRequestPost({ request, env }) {
   try {
-    const { problems } = await request.json();
+    const body = await request.json();
+    const problems = body.problems || body;
     if (!Array.isArray(problems) || problems.length === 0) {
       return new Response(JSON.stringify({ error: "No problems" }), { status: 400 });
     }
-
-    const { results: existing } = await env.DB.prepare(
-      "SELECT subject, stage, difficulty, question FROM problems WHERE question IS NOT NULL"
-    ).all();
-    const makeComposite = (subject, stage, difficulty, question) =>
-      `${subject}|${stage}|${difficulty}|${String(question ?? '').trim()}`;
-    const existingSet = new Set(
-      existing.map(r => makeComposite(r.subject, r.stage, r.difficulty, r.question))
-    );
-
+    const { results: existing } = await env.DB.prepare("SELECT subject, stage, difficulty, question, id FROM problems").all();
+    const makeComposite = (subject, stage, difficulty, question) => `${subject}|${stage}|${difficulty}|${String(question ?? '').trim()}`;
+    const existingSet = new Set(existing.map(r => makeComposite(r.subject, r.stage, r.difficulty, r.question)));
+    const idSet = new Set(existing.map(r => r.id));
     let saved = 0, skipped = 0;
     for (const p of problems) {
-      const question = String(p.question ?? '').trim();
+      const question = String(p.question ?? p.q_en ?? p.q_kr ?? '').trim();
       const composite = makeComposite(p.subject, p.stage, p.difficulty, question);
-
-      // 같은 문제 내용은 ID가 달라도 저장하지 않음
-      if (existingSet.has(composite)) {
-        skipped++;
-        continue;
-      }
-
-      const idExists = await env.DB.prepare(
-        "SELECT id FROM problems WHERE id = ?"
-      ).bind(p.id).first();
-      if (idExists) {
-        skipped++;
-        continue;
-      }
-
-      const result = await env.DB.prepare(
+      if (existingSet.has(composite) || idSet.has(p.id)) { skipped++; continue; }
+      // ✅ 21개 컬럼 = 21개 ? - 이게 핵심 수정!
+      await env.DB.prepare(
         `INSERT OR IGNORE INTO problems
-         (id, stage, subject, difficulty, question, options, answer, explanation, skill, tag)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (id, stage, subject, topic, subtype, difficulty, skill_type, source, time_sec, q_kr, q_en, rule1, rule2, answer, explanation_kr, created_at, question, options, explanation, skill, tag)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
-        p.id,
-        p.stage,
-        p.subject,
-        p.difficulty,
-        question,
-        JSON.stringify(p.options),
-        typeof p.answer === 'number' ? p.options[p.answer] : p.answer,
-        p.explanation,
-        p.skill || 'General',
-        p.tag || 'generated'
+        p.id ?? `GEN-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+        String(p.stage ?? '1'),
+        p.subject ?? 'Math',
+        p.topic ?? p.subject ?? 'General',
+        p.subtype ?? '',
+        typeof p.difficulty === 'string' && p.difficulty.length===1 ? (p.difficulty==='E'?0:p.difficulty==='M'?1:2) : (p.difficulty ?? 1),
+        p.skill ?? 'General',
+        p.source ?? 'template',
+        p.time_sec ?? 60,
+        p.q_kr ?? question ?? '',
+        p.q_en ?? question ?? '',
+        p.rule1 ?? '',
+        p.rule2 ?? '',
+        typeof p.answer === 'number' ? String(p.answer) : (p.answer ?? '0'),
+        p.explanation_kr ?? p.explanation ?? '',
+        new Date().toISOString(),
+        question ?? '',
+        JSON.stringify(p.options ?? []),
+        p.explanation ?? '',
+        p.skill ?? 'General',
+        p.tag ?? 'generated'
       ).run();
-
-      if (result.meta.changes > 0) {
-        saved++;
-        existingSet.add(composite);
-      } else {
-        skipped++;
-      }
+      saved++; existingSet.add(composite); idSet.add(p.id);
     }
-
-    return new Response(JSON.stringify({
-      saved,
-      skipped,
-      total: problems.length,
-      message: `Saved ${saved}, skipped ${skipped} duplicates`
-    }), {
-      headers: { "Content-Type": "application/json" }
-    });
+    return new Response(JSON.stringify({ saved, skipped, total: problems.length }), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: e.message, stack: e.stack }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
+}
+
+export async function onRequestOptions() {
+  return new Response(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" } });
 }
