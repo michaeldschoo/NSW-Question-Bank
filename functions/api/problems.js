@@ -47,9 +47,7 @@ export async function onRequestPost({ request, env }) {
   try {
     const body = await request.json();
     const problems = body.problems || body;
-    if (!Array.isArray(problems) || problems.length === 0) {
-      return new Response(JSON.stringify({ error: "No problems" }), { status: 400 });
-    }
+    if (!Array.isArray(problems) || problems.length === 0) return new Response(JSON.stringify({ error: "No problems" }), { status: 400 });
     const { results: existing } = await env.DB.prepare("SELECT subject, stage, difficulty, question, id FROM problems").all();
     const makeComposite = (subject, stage, difficulty, question) => `${subject}|${stage}|${difficulty}|${String(question ?? '').trim()}`;
     const existingSet = new Set(existing.map(r => makeComposite(r.subject, r.stage, r.difficulty, r.question)));
@@ -59,33 +57,17 @@ export async function onRequestPost({ request, env }) {
       const question = String(p.question ?? p.q_en ?? p.q_kr ?? '').trim();
       const composite = makeComposite(p.subject, p.stage, p.difficulty, question);
       if (existingSet.has(composite) || idSet.has(p.id)) { skipped++; continue; }
-      // ✅ 21개 컬럼 = 21개 ? - 이게 핵심 수정!
       await env.DB.prepare(
-        `INSERT OR IGNORE INTO problems
-         (id, stage, subject, topic, subtype, difficulty, skill_type, source, time_sec, q_kr, q_en, rule1, rule2, answer, explanation_kr, created_at, question, options, explanation, skill, tag)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT OR IGNORE INTO problems (id, stage, subject, topic, subtype, difficulty, skill_type, source, time_sec, q_kr, q_en, rule1, rule2, answer, explanation_kr, created_at, question, options, explanation, skill, tag) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         p.id ?? `GEN-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
-        String(p.stage ?? '1'),
-        p.subject ?? 'Math',
-        p.topic ?? p.subject ?? 'General',
-        p.subtype ?? '',
+        String(p.stage ?? '1'), p.subject ?? 'Math', p.topic ?? p.subject ?? 'General', p.subtype ?? '',
         typeof p.difficulty === 'string' && p.difficulty.length===1 ? (p.difficulty==='E'?0:p.difficulty==='M'?1:2) : (p.difficulty ?? 1),
-        p.skill ?? 'General',
-        p.source ?? 'template',
-        p.time_sec ?? 60,
-        p.q_kr ?? question ?? '',
-        p.q_en ?? question ?? '',
-        p.rule1 ?? '',
-        p.rule2 ?? '',
+        p.skill ?? 'General', p.source ?? 'template', p.time_sec ?? 60,
+        p.q_kr ?? question ?? '', p.q_en ?? question ?? '', p.rule1 ?? '', p.rule2 ?? '',
         typeof p.answer === 'number' ? String(p.answer) : (p.answer ?? '0'),
-        p.explanation_kr ?? p.explanation ?? '',
-        new Date().toISOString(),
-        question ?? '',
-        JSON.stringify(p.options ?? []),
-        p.explanation ?? '',
-        p.skill ?? 'General',
-        p.tag ?? 'generated'
+        p.explanation_kr ?? p.explanation ?? '', new Date().toISOString(),
+        question ?? '', JSON.stringify(p.options ?? []), p.explanation ?? '', p.skill ?? 'General', p.tag ?? 'generated'
       ).run();
       saved++; existingSet.add(composite); idSet.add(p.id);
     }
